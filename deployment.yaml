@@ -1,0 +1,88 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: tsampi-deployment
+spec:
+  replicas: 1 # tells deployment to run 2 pods matching the template
+  template: # create pods using pod definition in this template
+    metadata:
+      # unlike pod-nginx.yaml, the name is not included in the meta data as a unique name is
+      # generated from the deployment name
+      labels:
+        app: tsampi
+    spec:
+      volumes:
+        - name: ssl
+          secret:
+            secretName: ssl
+            items:
+            - key: key
+              path: tsampi.key
+            - key: crt
+              path: tsampi.crt
+        - name: gpg-keys
+          secret:
+              secretName: gpg-keys
+        - name: dot-ssh
+          secret:
+            secretName: dot-ssh
+            items:
+            - key: id-rsa
+              path: id_rsa
+            - key: id-rsa-pub
+              path: id_rsa.pub
+            - key: known-hosts
+              path: known_hosts
+      containers:
+        - name: tsampi-server
+          image: gcr.io/prot-905/tsampi-server:v18
+          command: ["/code/entrypoint.sh"]
+          args: ["uwsgi", "--chdir=/code/tsampi_server/", "--module=tsampi_server.wsgi:application", "--http", ":8080", "--static-map", "/static=/code/tsampi_server/static_root", "--master", "--https", ":8443,/ssl/tsampi.crt,/ssl/tsampi.key"]
+          volumeMounts:
+          - mountPath: /ssl
+            name: ssl
+          - mountPath: /root/gpg_keys
+            name: gpg-keys
+          - mountPath: /root/.ssh
+            name: dot-ssh
+          env:
+          - name: TSAMPI_GPG_FINGERPRINT
+            value: "22E693983D874EA0CF7C1947D934BC84BD2FFE0E"
+          - name: TSAMPI_CHAIN
+            value: git@github.com:readevalprint/tsampi-0.git
+          - name: DATABASE_NAME
+            value: tsampi
+          - name: DATABASE_HOST
+            value: 104.154.235.144
+          - name: DATABASE_USER
+            value: root
+          - name: DATABASE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: tsampi-stage
+                key: password
+        - name: tsampi-worker
+          image: gcr.io/prot-905/tsampi-server:v18
+          command: ["/code/entrypoint.sh"]
+          args: ["manage", "celery", "worker", "-l", "INFO"]
+          volumeMounts:
+          - mountPath: /root/.ssh
+            name: dot-ssh
+          - mountPath: /root/gpg_keys
+            name: gpg-keys
+          env:
+          - name: TSAMPI_GPG_FINGERPRINT
+            value: "22E693983D874EA0CF7C1947D934BC84BD2FFE0E"
+          - name: TSAMPI_CHAIN
+            value: git@github.com:readevalprint/tsampi-0.git
+          - name: DATABASE_NAME
+            value: tsampi
+          - name: DATABASE_HOST
+            value: 104.154.235.144
+          - name: DATABASE_USER
+            value: root
+          - name: DATABASE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: tsampi-stage
+                key: password
