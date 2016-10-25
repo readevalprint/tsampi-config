@@ -35,7 +35,7 @@ spec:
               path: known_hosts
       containers:
         - name: tsampi-server
-          image: gcr.io/prot-905/tsampi-server:v18
+          image: gcr.io/prot-905/tsampi-server:v26
           command: ["/code/entrypoint.sh"]
           args: ["uwsgi", "--chdir=/code/tsampi_server/", "--module=tsampi_server.wsgi:application", "--http", ":8080", "--static-map", "/static=/code/tsampi_server/static_root", "--master", "--https", ":8443,/ssl/tsampi.crt,/ssl/tsampi.key"]
           volumeMounts:
@@ -62,7 +62,7 @@ spec:
                 name: tsampi-stage
                 key: password
         - name: tsampi-worker
-          image: gcr.io/prot-905/tsampi-server:v18
+          image: gcr.io/prot-905/tsampi-server:v26
           command: ["/code/entrypoint.sh"]
           args: ["manage", "celery", "worker", "-l", "INFO"]
           volumeMounts:
