@@ -3,11 +3,9 @@ kind: Deployment
 metadata:
   name: tsampi-deployment
 spec:
-  replicas: 1 # tells deployment to run 2 pods matching the template
-  template: # create pods using pod definition in this template
+  replicas: 1
+  template:
     metadata:
-      # unlike pod-nginx.yaml, the name is not included in the meta data as a unique name is
-      # generated from the deployment name
       labels:
         app: tsampi
     spec:
@@ -25,19 +23,21 @@ spec:
               secretName: gpg-keys
         - name: dot-ssh
           secret:
+            defaultMode: 0400
             secretName: dot-ssh
             items:
             - key: id-rsa
               path: id_rsa
+              mode: 0400
             - key: id-rsa-pub
               path: id_rsa.pub
             - key: known-hosts
               path: known_hosts
       containers:
         - name: tsampi-server
-          image: gcr.io/prot-905/tsampi-server:v26
+          image: tsampi/tsampi-server
           command: ["/code/entrypoint.sh"]
-          args: ["uwsgi", "--chdir=/code/tsampi_server/", "--module=tsampi_server.wsgi:application", "--http", ":8080", "--static-map", "/static=/code/tsampi_server/static_root", "--master", "--https", ":8443,/ssl/tsampi.crt,/ssl/tsampi.key"]
+          args: ["uwsgi", "--chdir=/code/tsampi_server/", "--module=tsampi_server.wsgi:application", "--http", ":8080", "--static-map", "/static=/code/tsampi_server/static_root", "--master", "--https", ":8443,/ssl/tsampi.crt,/ssl/tsampi.key", "--static-map",  "/static=/code/tsampi_server/static_root/"]
           volumeMounts:
           - mountPath: /ssl
             name: ssl
@@ -53,16 +53,17 @@ spec:
           - name: DATABASE_NAME
             value: tsampi
           - name: DATABASE_HOST
-            value: 104.154.235.144
+            value: db
           - name: DATABASE_USER
             value: root
           - name: DATABASE_PASSWORD
             valueFrom:
               secretKeyRef:
-                name: tsampi-stage
+                name: db
                 key: password
+
         - name: tsampi-worker
-          image: gcr.io/prot-905/tsampi-server:v26
+          image: tsampi/tsampi-server
           command: ["/code/entrypoint.sh"]
           args: ["manage", "celery", "worker", "-l", "INFO"]
           volumeMounts:
@@ -78,11 +79,76 @@ spec:
           - name: DATABASE_NAME
             value: tsampi
           - name: DATABASE_HOST
-            value: 104.154.235.144
+            value: db
           - name: DATABASE_USER
             value: root
           - name: DATABASE_PASSWORD
             valueFrom:
               secretKeyRef:
-                name: tsampi-stage
+                name: db
                 key: password
+------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: tsampi-service
+  labels:
+    app: tsampi
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    name: http
+    targetPort: 8080
+  - port: 443
+    protocol: TCP
+    name: https
+    targetPort: 8443
+  selector:
+    app: tsampi
+  type: NodePort
+-----------
+
+apiVersion: extensions/v1beta1
+kind: "Deployment"
+metadata:
+  name: db
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: db
+    spec:
+      containers:
+        - name: db
+          image: mysql:5.7
+          ports:
+          - containerPort: 3306
+            name: db
+          env:
+          - name: MYSQL_ROOT_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: db
+                key: password
+          - name: POSTGRES_USER
+            value: root
+          - name: MYSQL_DATABASE
+            value: tsampi
+-------------
+apiVersion: v1
+kind: "Service"
+metadata:
+ name: "db"
+ labels:
+   app: db
+spec:
+  ports:
+  - name: "db"
+    protocol: "TCP"
+    port: 3306
+    targetPort: 3306
+  selector:
+    app: db
+  type: NodePort
