@@ -87,7 +87,7 @@ spec:
               secretKeyRef:
                 name: db
                 key: password
-------------
+---
 apiVersion: v1
 kind: Service
 metadata:
@@ -107,7 +107,7 @@ spec:
   selector:
     app: tsampi
   type: NodePort
------------
+---
 
 apiVersion: extensions/v1beta1
 kind: "Deployment"
@@ -136,7 +136,7 @@ spec:
             value: root
           - name: MYSQL_DATABASE
             value: tsampi
--------------
+---
 apiVersion: v1
 kind: "Service"
 metadata:
